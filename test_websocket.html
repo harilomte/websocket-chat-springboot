@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+  <meta charset="utf-8" />
+  <title>WebSocket Chat App</title>
+  <script language="javascript" type="text/javascript">
+
+//	  var wsUri = "wss://echo.websocket.org/";
+  var wsUri = "ws://localhost:8080/echos";
+  var output;
+	var websocket;
+	
+	var currentUser;
+	var chatSessionId;
+
+  function init()
+  {
+    output = document.getElementById("output");
+    testWebSocket();
+  }
+
+  function testWebSocket()
+  {
+    websocket = new WebSocket(wsUri);
+    websocket.onopen = function(evt) { onOpen(evt) };
+    websocket.onOpen = function(evt) { onClose(evt) };
+    websocket.onmessage = function(evt) { onMessage(evt) };
+    websocket.onerror = function(evt) { onError(evt) };
+  }
+
+  function onOpen(evt)
+  {
+    writeToScreen("CONNECTED");
+  }
+
+  function onClose(evt)
+  {
+    writeToScreen("DISCONNECTED");
+  }
+
+  function onMessage(evt)
+  {
+    writeToScreen('<span style="color: blue;">RESPONSE: ' + evt.data+'</span>');
+
+		var response = JSON.parse(evt.data);
+		
+		switch(response.responseType) {
+			case "LoginResult" : 
+				if(response.status == "200") {
+					document.getElementById("login").style.display = "none";
+					document.getElementById("initiate_chat").style.display = "block";
+					document.getElementById("welcome").style.display = "block";
+				}
+				
+				break;
+			case "LoggedInUsers" : 
+				document.getElementById("initiate_chat").innerHTML = "";
+				
+				var users = response.users;
+				var filteredUsers = users.filter(matchesCurrentUser);
+				if (filteredUsers.length == 0) {
+						document.getElementById("initiate_chat").innerHTML = "No users to chat with";
+				}
+				filteredUsers.forEach(
+					function myFunction(item, index) {
+						var htmlToAppend = '<a href="#" onclick="initiateChat(\''+item+'\');return false;">Chat with '+item+'</a>';
+					  document.getElementById("initiate_chat").innerHTML += htmlToAppend + "<br>"; 
+					}
+				)
+				break;
+			case "ChatSessionCreationResult" : 
+				document.getElementById("initiate_chat").style.display = "none";
+				document.getElementById("chat_div").style.display = "block";
+				
+				chatSessionId = response.chatSessionId;
+				break;
+			case "chatMessage" : 
+				
+				var fromUser = response.fromUser;
+				var message = response.message;
+				var htmlToAppend = fromUser + ": " + message;
+				
+				document.getElementById("chatMessagesRecieved").innerHTML += htmlToAppend + "<br>"; 
+				
+				break;
+		}
+  }
+
+  function onError(evt)
+  {
+    writeToScreen('<span style="color: red;">ERROR:</span> ' + evt.data);
+  }
+
+  function doSend(message)
+  {
+    writeToScreen("SENT: " + message);
+    websocket.send(message);
+  }
+
+  function writeToScreen(message)
+  {
+    var pre = document.createElement("p");
+    pre.style.wordWrap = "break-word";
+    pre.innerHTML = message;
+    //output.appendChild(pre);
+  }
+
+	function login() {
+		var username = document.getElementById("username").value;
+		document.getElementById("current_user_name").innerHTML=username;
+		
+		currentUser = username;
+		var loginRequest = {
+			requestType: "LOGIN",
+			user: username
+		}
+    doSend(JSON.stringify(loginRequest));
+		
+	}
+	
+	function initiateChat(otherusername) {
+		var initiateChatRequest = {
+			requestType: "INITIATE_CHAT",
+			chatWithUsers: otherusername
+		}
+		
+		doSend(JSON.stringify(initiateChatRequest));
+	}
+	
+	function sendChatMessage(chatMessage) {
+		var chatMessageRequest = {
+			requestType: "CHAT_MSG",
+			chatSessionId: chatSessionId,
+			message: chatMessage
+		}
+		
+		doSend(JSON.stringify(chatMessageRequest));
+		
+		var fromUser = currentUser;
+		var message = chatMessage;
+		var htmlToAppend = fromUser + ": " + message;
+
+		document.getElementById("chatMessagesRecieved").innerHTML += htmlToAppend + "<br>"; 
+	}
+	
+	function matchesCurrentUser(username) {
+		return currentUser != username;
+	}
+	
+  window.addEventListener("load", init, false);
+
+  </script>
+
+  <h2>WebSocket Chat App</h2>
+
+  <div id="output"></div>
+	
+	<div id="login">
+		Enter name to start Chatting: <input type="text" id="username">
+		<input type="submit" id="login_submit" onclick="login()">
+	</div>
+	
+	<div id="welcome" style="display: none;color: blue;font-size: x-large;margin-bottom: 12pt;">
+		Welcome <span id="current_user_name" />
+	</div>
+	<div id="initiate_chat" style="display: none;" >
+	</div>
+		
+	<div id="chat_div" style="display: none;" >
+		
+		<div id="chatMessagesRecieved" >
+		</div>
+		
+		<br/>
+		<input type="text" id="chatMessage" />
+		<input type="submit" id="chatMessageSubmit" onclick="sendChatMessage(document.getElementById('chatMessage').value);" />
+	</div>
+		
+
